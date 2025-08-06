@@ -82,8 +82,10 @@ def user(handle: str):
 def search(searchtype: str, query: str, limit: int, resolve: bool):
     """Search for users, statuses, groups, or hashtags."""
 
-    for page in api.search(searchtype, query, limit, resolve):
-        print(json.dumps(page[searchtype]))
+    # The loop variable is now 'post' to match the output from the API
+    for post in api.search(searchtype, query, limit, resolve):
+        # This now correctly prints each individual post
+        print(json.dumps(post))
 
 
 @cli.command()
