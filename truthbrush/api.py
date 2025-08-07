@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from dotenv import load_dotenv
+import random
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +21,6 @@ API_BASE_URL = "https://truthsocial.com/api"
 
 TRUTHSOCIAL_USERNAME = os.getenv("TRUTHSOCIAL_USERNAME")
 TRUTHSOCIAL_PASSWORD = os.getenv("TRUTHSOCIAL_PASSWORD")
-TRUTHSOCIAL_TOKEN = os.getenv("TRUTHSOCIAL_TOKEN")
 
 class LoginErrorException(Exception):
     pass
@@ -30,7 +30,7 @@ class Api:
         self,
         username=TRUTHSOCIAL_USERNAME,
         password=TRUTHSOCIAL_PASSWORD,
-        token=TRUTHSOCIAL_TOKEN,
+        token=None,
     ):
         self.__username = username
         self.__password = password
@@ -44,25 +44,50 @@ class Api:
     def __check_login(self):
         if self.driver is None or self.auth_id is None:
             if self.__username is None:
-                raise LoginErrorException("Username is missing.")
+                raise LoginErrorException("Username is missing. Please set it in your .env file.")
             if self.__password is None:
-                raise LoginErrorException("Password is missing.")
+                raise LoginErrorException("Password is missing. Please set it in your .env file.")
             self._browser_login()
 
     def _browser_login(self):
-        logger.info("Launching browser for authentication...")
+        logger.info("Launching browser for automated login...")
         options = uc.ChromeOptions()
+        # To see the process, keep headless=False. To run in the background, set headless=True.
         # options.headless = True 
         self.driver = uc.Chrome(options=options)
 
         try:
-            self.driver.get(f"{BASE_URL}/explore")
-            logger.info("Please complete the login in the browser window.")
-            WebDriverWait(self.driver, timeout=300).until(
+            # Navigate directly to the login page
+            self.driver.get(f"{BASE_URL}/login")
+
+            # --- AUTO-FILL USERNAME ---
+            # Wait for the username field to be visible and then type into it
+            logger.info("Entering username...")
+            username_field = WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.NAME, "username"))
+            )
+            username_field.send_keys(self.__username)
+
+            # --- AUTO-FILL PASSWORD ---
+            # Find the password field and type into it
+            logger.info("Entering password...")
+            password_field = self.driver.find_element(By.NAME, "password")
+            password_field.send_keys(self.__password)
+
+            # --- AUTO-CLICK SIGN IN ---
+            # Find the sign-in button and click it
+            logger.info("Clicking Sign In...")
+            signin_button = self.driver.find_element(By.XPATH, "//button[@type='submit']")
+            signin_button.click()
+
+            # --- WAIT FOR LOGIN SUCCESS ---
+            # Wait for the 'Home' landmark to appear on the timeline page
+            WebDriverWait(self.driver, 20).until(
                 EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Home')]"))
             )
             logger.info("Login successful! Session is now active.")
 
+            # --- EXTRACT TOKEN ---
             token_data_str = self.driver.execute_script("return localStorage.getItem('truth:auth')") 
             if not token_data_str:
                 raise LoginErrorException("Could not find 'truth:auth' key after login.")
@@ -76,13 +101,12 @@ class Api:
 
             logger.success(f"Successfully retrieved auth token: {self.auth_id[:10]}...")
         except Exception as e:
-            logger.error(f"An error occurred during browser login: {e}")
+            logger.error(f"An error occurred during automated browser login: {e}")
             if self.driver:
                 self.driver.quit()
             raise
 
     def _get(self, url: str, params: dict = None) -> Any:
-        """Performs an API GET request from within the authenticated browser session."""
         self.__check_login()
         full_url = API_BASE_URL + url
         if params:
@@ -107,44 +131,52 @@ class Api:
             logger.error(f"In-browser API request failed: {e}")
             return None
 
-    # --- CORRECTED SEARCH FUNCTION ---
-    def search(self, searchtype: str = None, query: str = None, limit: int = 40, resolve: bool = False, offset: int = 0, **kwargs):
-        """Search and yield individual items (statuses, accounts, etc.)."""
+    # This is the CORRECT line
+    def search(self, searchtype: str = None, query: str = None, limit: int = 40, resolve: bool = False, created_after: datetime = None, created_before: datetime = None, **kwargs):
+        """Search and yield individual items, with optional date filtering."""
         if searchtype != "statuses":
-            logger.error("This version of the script currently only supports searching for 'statuses'.")
+            logger.error("This version only supports searching for 'statuses'.")
             return
 
-        params = dict(q=query, resolve=resolve, limit=limit, type=searchtype, offset=offset)
-
+        params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
         total_fetched = 0
-        # Set a limit for the total number of statuses to fetch to avoid very long runs
-        MAX_STATUSES = 1000 
+        MAX_STATUSES = 10000 # Increased limit for date-range searches
 
         while total_fetched < MAX_STATUSES:
             page = self._get("/v2/search", params)
-
             if not page or not isinstance(page.get('statuses'), list) or not page.get('statuses'):
                 logger.info("Search finished or no more results found.")
                 break
 
-            statuses = page['statuses']
+            # Sort posts by date (newest first) to efficiently handle date ranges
+            statuses = sorted(page['statuses'], key=lambda p: p.get("created_at", ""), reverse=True)
+
             for status in statuses:
+                post_at = date_parse.parse(status["created_at"]).replace(tzinfo=timezone.utc)
+
+                # --- DATE FILTERING LOGIC ---
+                if created_after and post_at < created_after:
+                    # If we find a post that is older than our start date, we can stop the entire search.
+                    logger.info(f"Stopping search as post date {post_at.date()} is before the start date {created_after.date()}.")
+                    total_fetched = MAX_STATUSES # Set to max to break the outer loop
+                    break
+                if created_before and post_at > created_before:
+                    # If the post is newer than our end date, skip it and continue to the next (older) post.
+                    continue
+
                 yield status
                 total_fetched += 1
                 if total_fetched >= MAX_STATUSES:
                     break
 
             if total_fetched >= MAX_STATUSES:
-                logger.warning(f"Reached search limit of {MAX_STATUSES} statuses. Stopping.")
+                logger.warning(f"Reached search limit of {MAX_STATUSES} statuses or finished date range. Stopping.")
                 break
 
-            # Prepare for the next page
-            offset += len(statuses)
-            params['offset'] = offset
-            sleep(1) # Add a small delay to be polite to the server
+            params['offset'] += len(statuses)
+            sleep(random.uniform(1.5, 3.5))
 
-
-    def pull_statuses(self, username: str, replies=False, verbose=False, created_after: datetime = None, since_id=None, pinned=False):
+    def pull_statuses(self, username: str, **kwargs):
         lookup_result = self.lookup(username)
         if not lookup_result or "id" not in lookup_result:
             logger.error(f"Could not find user ID for {username}")
@@ -152,18 +184,12 @@ class Api:
         user_id = lookup_result["id"]
 
         params = {}
-        if pinned:
-            params['pinned'] = 'true'
-        elif not replies:
-            params['exclude_replies'] = 'true'
-
         max_id = None
         while True:
             if max_id:
                 params['max_id'] = max_id
 
             result = self._get(f"/v1/accounts/{user_id}/statuses", params=params)
-
             if not result or (isinstance(result, dict) and "error" in result):
                 break
 
@@ -172,16 +198,10 @@ class Api:
                 break
             max_id = posts[-1]["id"]
 
-            keep_going = True
             for post in posts:
-                post_at = date_parse.parse(post["created_at"]).replace(tzinfo=timezone.utc)
-                if (created_after and post_at <= created_after) or (since_id and post["id"] <= since_id):
-                    keep_going = False
-                    break
                 yield post
 
-            if not keep_going or pinned:
-                break
+            sleep(random.uniform(1.5, 3.5))
 
     def lookup(self, user_handle: str = None):
         return self._get("/v1/accounts/lookup", params=dict(acct=user_handle))

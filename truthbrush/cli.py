@@ -72,21 +72,38 @@ def user(handle: str):
 @click.argument("query")
 @click.option(
     "--searchtype",
-    help="Type of search query (accounts, statuses, groups, or hashtags)",
+    help="Type of search query (statuses is recommended).",
     type=click.Choice(["accounts", "statuses", "hashtags", "groups"]),
+    default="statuses",
 )
 @click.option(
-    "--limit", default=40, help="Limit the number of items returned", type=int
+    "--limit", default=40, help="Limit the number of items returned per page.", type=int
 )
-@click.option("--resolve", help="Resolve", type=bool)
-def search(searchtype: str, query: str, limit: int, resolve: bool):
-    """Search for users, statuses, groups, or hashtags."""
+@click.option("--resolve", help="Resolve URLs.", type=bool, default=False)
+@click.option(
+    "--created-after",
+    default=None,
+    help="Only scrape posts created ON or AFTER this date (YYYY-MM-DD).",
+    type=datetime.datetime.fromisoformat,
+)
+@click.option(
+    "--created-before",
+    default=None,
+    help="Only scrape posts created ON or BEFORE this date (YYYY-MM-DD).",
+    type=datetime.datetime.fromisoformat,
+)
+def search(searchtype: str, query: str, limit: int, resolve: bool, created_after: date, created_before: date):
+    """Search for posts, hashtags, or users."""
 
-    # The loop variable is now 'post' to match the output from the API
-    for post in api.search(searchtype, query, limit, resolve):
-        # This now correctly prints each individual post
-        print(json.dumps(post))
+    # Assume UTC if no timezone is specified
+    if created_after and created_after.tzinfo is None:
+        created_after = created_after.replace(tzinfo=datetime.timezone.utc)
+    if created_before and created_before.tzinfo is None:
+        created_before = created_before.replace(tzinfo=datetime.timezone.utc)
 
+    # Pass all arguments to the api.search function
+    for item in api.search(searchtype=searchtype, query=query, limit=limit, resolve=resolve, created_after=created_after, created_before=created_before):
+        print(json.dumps(item))
 
 @cli.command()
 def suggestions():
