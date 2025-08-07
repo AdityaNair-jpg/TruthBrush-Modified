@@ -99,8 +99,8 @@ truthbrush search --searchtype statuses "YOUR QUERY"
 **Example:**
 
 ```bash
-# Scrape all posts containing the hashtag #republicans
-truthbrush search --searchtype statuses "#republicans" > republicans_posts.jsonl
+# Scrape all posts containing the keyword republicans
+truthbrush search --searchtype statuses "republicans" > republicans_posts.jsonl
 
 # Scrape all posts containing the word "india"
 truthbrush search --searchtype statuses "india" > india_posts.jsonl
