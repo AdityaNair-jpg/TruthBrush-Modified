@@ -70,7 +70,7 @@ truthbrush statuses [USERNAME]
 **Example:**
 
 ```bash
-# Scrape all posts from gordonsimons and save to a file
+# Scrape all posts from User and save to a file
 truthbrush statuses [USERNAME} > [USERNAME].jsonl
 ```
 
