@@ -1,172 +1,131 @@
-# truthbrush
-Truthbrush is an API client for Truth Social. Truthbrush is built and maintained by the [Stanford Internet Observatory](https://io.stanford.edu).
 
-Currently, this tool can:
+# TruthBrush-Modified
 
-* Search for users, statuses, groups, or hashtags
-* Pull a user's statuses
-* Pull the list of "People to Follow" or suggested users
-* Pull "trending" hashtags
-* Pull "trending" Truth posts
-* Pull ads
-* Pull a user's metadata
-* Pull the list of users who liked a post
-* Pull the list of comments on a post
-* Pull "trending" groups
-* Pull list of suggested groups
-* Pull "trending" group hashtags
-* Pull posts from group timeline
+`TruthBrush-Modified` is a significantly re-engineered version of the original `truthbrush` API client for Truth Social, which was built and maintained by the Stanford Internet Observatory.
 
-Truthbrush is designed for academic research, open source intelligence gathering, and data archival. It pulls all data from the publicly accessible API.
+This version has been completely overhauled to bypass advanced anti-bot measures by using a full browser automation engine, enabling reliable and fully automated data collection for academic research, open source intelligence, and archival purposes.
 
-## Installation
+## Key Modifications from the Original
 
-Truthbrush is not yet available on PyPI. To install it, run `pip install git+https://github.com/stanfordio/truthbrush.git`, or clone the repository and run `pip3 install .`. Provided your `pip` is setup correctly, this will make `truthbrush` available both as a command and as a Python package. **Note that Truthbrush requires Python 3.9 or higher.**
+The core of this program was re-written to solve the challenge of modern anti-bot security systems. The key changes are:
 
-After installation, you will need to set your Truth Social username and password as environmental variables.
+1.  **New Scraping Engine:** The original networking libraries have been replaced with **Selenium** and the **`undetected-chromedriver`** library. This allows the script to operate out of a real, patched Chrome browser, making its behavior appear more human and avoiding blocks.
 
-`export TRUTHSOCIAL_USERNAME=foo`
+2.  **Fully Automated Login:** The script no longer requires any manual intervention. It automatically launches a browser, navigates to the login page, enters the user's credentials from the `.env` file, and submits the form to authenticate a session.
 
-`export TRUTHSOCIAL_PASSWORD=bar`
+3.  **Enhanced Reliability:** All subsequent API calls are made from within the authenticated browser session. This ensures that every request has the correct cookies and headers, making the script's traffic indistinguishable from a normal user and preventing `403 Forbidden` errors.
 
-You may also set these variables in a `.env` file in the directory from which you are running Truthbrush.
+4.  **New Date Filtering Feature:** Functionality has been added to filter topic searches by a specific date range, allowing for more precise data collection.
 
-## CLI Usage
+5.  **Built-in Anti-Ban Measures:** The script includes randomized delays between requests and a hard-coded limit on the number of posts fetched per search to ensure the tool is used responsibly and to minimize the risk of IP bans.
 
-```text
-Usage: truthbrush [OPTIONS] COMMAND [ARGS]...
+---
 
-Options:
-  --help     Show this message and exit.
+## Setup and Installation
 
+### Prerequisites
 
-Commands:
-  search            Search for users, statuses or hashtags.
-  statuses          Pull a user's statuses.
-  suggestions       Pull the list of suggested users.
-  tags              Pull trendy tags.
-  trends            Pull trendy Truths.
-  ads               Pull ads.
-  user              Pull a user's metadata.
-  likes             Pull the list of users who liked a post
-  comments          Pull the list of oldest comments on a post
-  groupposts        Pull posts from a groups's timeline
-  grouptags         Pull trending group tags.
-  grouptrends       Pull trending groups.
-  groupsuggestions  Pull list of suggested groups.
+* **Python 3.9 or higher.**
+* **Google Chrome** browser installed on your system.
 
-``````
+### 1. Installation
 
-**Search for users, statuses, groups, or hashtags**
+Clone the project repository to your local machine. Navigate to the project directory in your terminal and run the pip installer. This will install `truthbrush` and all its dependencies, including Selenium.
 
 ```bash
-truthbrush search --searchtype [accounts|statuses|hashtags|groups] QUERY
-```
+pip install .
+````
 
-**Pull all statuses (posts) from a user**
+This makes `truthbrush` available as a command in your terminal.
 
-```bash
-truthbrush statuses HANDLE
-```
+### 2\. Configuration (Crucial Step)
 
-**Pull "People to Follow" (suggested) users**
+To enable the automated login, you must provide your Truth Social credentials in a `.env` file.
 
-```bash
-truthbrush suggestions
-```
-**Pull trendy tags**
+1.  In the root of your project folder (`D:\truthbrush`), create a new text file.
+2.  Name the file exactly **`.env`**
+3.  Open the file and add your username and password in the following format:
+    ```
+    TRUTHSOCIAL_USERNAME="your_username"
+    TRUTHSOCIAL_PASSWORD="your_password"
+    ```
+4.  Save the file. The script will automatically read these credentials every time it runs.
 
-```bash
-truthbrush tags
-```
-**Pull ads**
+**Security Note:** The `.env` file is included in the `.gitignore` and should never be shared or uploaded to public repositories.
 
-```bash
-truthbrush ads
-```
+-----
 
-**Pull all of a user's metadata**
+## Usage
 
-```bash
-truthbrush user HANDLE
-```
+All commands should be run from your project directory in the terminal (e.g., PowerShell or Command Prompt). The script will automatically launch a browser, log in, and perform the requested task.
 
-**Pull the list of users who liked a post**
+### Scrape a User's Posts
+
+This command scrapes all posts from a specific user's timeline.
 
 ```bash
-truthbrush likes POST --includeall TOP_NUM
+truthbrush statuses [USERNAME]
 ```
 
-**Pull the list of oldest comments on a post**
+**Example:**
 
 ```bash
-truthbrush comments POST --includeall --onlyfirst TOP_NUM
+# Scrape all posts from gordonsimons and save to a file
+truthbrush statuses [USERNAME} > [USERNAME].jsonl
 ```
 
-**Pull trending group tags**
+### Scrape a User's Posts After a Specific Date
+
+Use the `--created-after` flag to get posts created on or after a certain date.
 
 ```bash
-truthbrush grouptags
+truthbrush statuses [USERNAME] --created-after YYYY-MM-DD
 ```
 
-**Pull trending groups**
+**Example:**
 
 ```bash
-truthbrush grouptrends
+truthbrush statuses realDonaldTrump --created-after 2025-08-01 > trump_posts_after_august.jsonl
 ```
 
-**Pull list of suggested groups**
+### Search for Posts by Topic/Keyword
+
+This command searches for all posts containing a specific word, phrase, or hashtag.
 
 ```bash
-truthbrush groupsuggestions
+truthbrush search --searchtype statuses "YOUR QUERY"
 ```
 
-**Pull posts from a group's timeline**
+**Example:**
 
 ```bash
-truthbrush groupposts GROUP_ID
+# Scrape all posts containing the hashtag #republicans
+truthbrush search --searchtype statuses "#republicans" > republicans_posts.jsonl
+
+# Scrape all posts containing the word "india"
+truthbrush search --searchtype statuses "india" > india_posts.jsonl
 ```
 
-## Contributing
+### Search for Posts Within a Date Range
 
-Contributions are encouraged! For small bug fixes and minor improvements, feel free to just open a PR. For larger changes, please open an issue first so that other contributors can discuss your plan, avoid duplicated work, and ensure it aligns with the goals of the project. Be sure to also follow the [code of conduct](CODE_OF_CONDUCT.md). Thanks!
+You can combine the search command with the date filtering flags to get posts on a specific topic within a precise timeframe.
 
-Development setup (ensure you have [Poetry](https://python-poetry.org/) installed):
-
-```sh
-poetry install
-poetry shell
-truthbrush --help # will use your local copy of truthbrush
+```bash
+truthbrush search --searchtype statuses "YOUR QUERY" --created-after YYYY-MM-DD --created-before YYYY-MM-DD
 ```
 
+**Example:**
 
-If you prefer not to install Poetry in your root environment, you can also use Conda:
-
-```sh
-conda create -n truthbrush-env python=3.9
-conda activate truthbrush-env
-
-conda install -c conda-forge poetry
-poetry install
+```bash
+# Scrape posts about "elections" from January 2025
+truthbrush search --searchtype statuses "elections" --created-after 2025-01-01 --created-before 2025-01-31 > elections_jan_posts.jsonl
 ```
 
-To run the tests:
+-----
 
-```sh
-pytest
+## Acknowledgements
 
-# optionally run tests with verbose logging outputs:
-pytest --log-cli-level=DEBUG -s
+This project is a modification of the original `truthbrush` tool created by the **Stanford Internet Observatory**. Full credit and thanks go to them for their foundational work. This version was re-engineered to adapt to new security challenges while building upon the excellent command-line interface they designed.
+
 ```
-
-Please format your code with `black`:
-
-```sh
-black .
 ```
-
-## Wishlist
-
-Support for the following capabilities is planned:
-
-- ...nothing right now! (Got an idea? Submit an issue/PR!)
