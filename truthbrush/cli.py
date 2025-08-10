@@ -1,210 +1,151 @@
-"""Defines the CLI for Truthbrush."""
-
 import json
 import click
-from datetime import date
-import datetime
+from datetime import date, datetime, timezone
 from .api import Api
 
-api = Api()
-
-
-@click.group()
-def cli():
-    """This is an API client for Truth Social."""
-
+@click.group(context_settings=dict(help_option_names=['-h', '--help']))
+@click.pass_context
+def cli(ctx):
+    """
+    TruthBrush-Modified: A re-engineered API client for Truth Social.
+    Requires a .env file in the run directory.
+    """
+    # This is the corrected initialization. It creates the Api object
+    # after the environment is ready and passes it to other commands.
+    ctx.obj = Api()
 
 @cli.command()
 @click.argument("group_id")
-@click.option(
-    "--limit", default=20, help="Limit the number of items returned", type=int
-)
-def groupposts(group_id: str, limit: int):
-    """Pull posts from group timeline"""
-
-    print(json.dumps(api.group_posts(group_id, limit)))
-
+@click.option("--limit", default=20, help="Limit the number of items returned", type=int)
+@click.pass_context
+def groupposts(ctx, group_id: str, limit: int):
+    """Pull posts from a group's timeline."""
+    api = ctx.obj
+    for post in api.groupposts(group_id, limit=limit):
+        print(json.dumps(post))
 
 @cli.command()
-def trends():
+@click.pass_context
+def trends(ctx):
     """Pull trendy Truths."""
-
-    print(json.dumps(api.trending()))
-
+    api = ctx.obj
+    trending_posts = api.trending_truths()
+    if trending_posts:
+        for post in trending_posts:
+            print(json.dumps(post))
 
 @cli.command()
-def tags():
+@click.pass_context
+def tags(ctx):
     """Pull trendy tags."""
-
+    api = ctx.obj
     print(json.dumps(api.tags()))
 
-
 @cli.command()
-def grouptags():
+@click.pass_context
+def grouptags(ctx):
     """Pull group tags."""
-
+    api = ctx.obj
     print(json.dumps(api.group_tags()))
 
-
 @cli.command()
-def grouptrends():
+@click.pass_context
+def grouptrends(ctx):
     """Pull group trends."""
-
+    api = ctx.obj
     print(json.dumps(api.trending_groups()))
 
-
 @cli.command()
-def groupsuggest():
+@click.pass_context
+def groupsuggestions(ctx):
     """Pull group suggestions."""
-
+    api = ctx.obj
     print(json.dumps(api.suggested_groups()))
-
 
 @cli.command()
 @click.argument("handle")
-def user(handle: str):
+@click.pass_context
+def user(ctx, handle: str):
     """Pull a user's metadata."""
-
+    api = ctx.obj
     print(json.dumps(api.lookup(handle)))
-
 
 @cli.command()
 @click.argument("query")
-@click.option(
-    "--searchtype",
-    help="Type of search query (statuses is recommended).",
-    type=click.Choice(["accounts", "statuses", "hashtags", "groups"]),
-    default="statuses",
-)
-@click.option(
-    "--limit", default=40, help="Limit the number of items returned per page.", type=int
-)
-@click.option("--resolve", help="Resolve URLs.", type=bool, default=False)
-@click.option(
-    "--created-after",
-    default=None,
-    help="Only scrape posts created ON or AFTER this date (YYYY-MM-DD).",
-    type=datetime.datetime.fromisoformat,
-)
-@click.option(
-    "--created-before",
-    default=None,
-    help="Only scrape posts created ON or BEFORE this date (YYYY-MM-DD).",
-    type=datetime.datetime.fromisoformat,
-)
-def search(searchtype: str, query: str, limit: int, resolve: bool, created_after: date, created_before: date):
-    """Search for posts, hashtags, or users."""
-
-    # Assume UTC if no timezone is specified
+@click.option("--searchtype", type=click.Choice(["statuses", "accounts", "hashtags", "groups"]), default="statuses", help="Type of content to search for.")
+@click.option("--limit", default=40, help="Number of results per page.")
+@click.option("--created-after", type=click.DateTime(), help="Filter posts on or after this date (YYYY-MM-DD).")
+@click.option("--created-before", type=click.DateTime(), help="Filter posts on or before this date (YYYY-MM-DD).")
+@click.option("--resolve", type=bool, default=False, help="Resolve URLs in search.")
+@click.pass_context
+def search(ctx, query: str, searchtype: str, limit: int, created_after: datetime, created_before: datetime, resolve: bool):
+    """Search for posts, accounts, or hashtags by a keyword."""
+    api = ctx.obj
     if created_after and created_after.tzinfo is None:
-        created_after = created_after.replace(tzinfo=datetime.timezone.utc)
+        created_after = created_after.replace(tzinfo=timezone.utc)
     if created_before and created_before.tzinfo is None:
-        created_before = created_before.replace(tzinfo=datetime.timezone.utc)
+        created_before = created_before.replace(tzinfo=timezone.utc)
 
-    # Pass all arguments to the api.search function
-    for item in api.search(searchtype=searchtype, query=query, limit=limit, resolve=resolve, created_after=created_after, created_before=created_before):
+    for item in api.search(searchtype=searchtype, query=query, limit=limit, created_after=created_after, created_before=created_before, resolve=resolve):
         print(json.dumps(item))
 
 @cli.command()
-def suggestions():
+@click.pass_context
+def suggestions(ctx):
     """Pull the list of suggested users."""
-
-    print(json.dumps(api.suggested()))
-
+    api = ctx.obj
+    suggested_users = api.suggestions()
+    if suggested_users:
+        for user in suggested_users:
+            print(json.dumps(user))
 
 @cli.command()
-def ads():
+@click.pass_context
+def ads(ctx):
     """Pull ads."""
-
+    api = ctx.obj
     print(json.dumps(api.ads()))
-
-
-# @cli.command()
-# @click.argument("handle")
-# @click.option("--maximum", help="the maximum number of followers to pull", type=int)
-# @click.option(
-#     "--resume",
-#     help="the `max_id` cursor to resume from, if necessary (pull this from logs to resume a failed/stalled export)",
-#     type=str,
-# )
-# def followers(handle: str, maximum: int = None, resume: str = None):
-#     """Pull a user's followers."""
-
-#     for follower in api.user_followers(handle, maximum=maximum, resume=resume):
-#         print(json.dumps(follower))
-
-
-# @cli.command()
-# @click.argument("handle")
-# @click.option(
-#     "--maximum", help="the maximum number of followed users to pull", type=int
-# )
-# @click.option(
-#     "--resume",
-#     help="the `max_id` cursor to resume from, if necessary (pull this from logs to resume a failed/stalled export)",
-#     type=str,
-# )
-# def following(handle: str, maximum: int = None, resume: str = None):
-#     """Pull users a given user follows."""
-
-#     for followed in api.user_following(handle, maximum=maximum, resume=resume):
-#         print(json.dumps(followed))
-
 
 @cli.command()
 @click.argument("username")
-@click.option(
-    "--replies/--no-replies",
-    default=False,
-    help="Include replies when pulling posts (defaults to no replies)",
-)
-@click.option(
-    "--created-after",
-    default=None,
-    help="Only pull posts created on or after the specified datetime, e.g. 2021-10-02 or 2011-11-04T00:05:23+04:00 (defaults to none). If a timezone is not specified, UTC is assumed.",
-    type=datetime.datetime.fromisoformat,
-)
-@click.option(
-    "--pinned/--all", default=False, help="Only pull pinned posts (defaults to all)"
-)
-def statuses(
-    username: str,
-    replies: bool = False,
-    created_after: date = None,
-    pinned: bool = False,
-):
-    """Pull a user's statuses"""
-
-    # Assume UTC if no timezone is specified
+@click.option("--replies/--no-replies", default=False, help="Include replies.")
+@click.option("--created-after", type=click.DateTime(), help="Scrape posts on or after this date (YYYY-MM-DD).")
+@click.option("--created-before", type=click.DateTime(), help="Scrape posts on or before this date (YYYY-MM-DD).")
+@click.option("--pinned/--all", default=False, help="Only pull pinned posts.")
+@click.pass_context
+def statuses(ctx, username: str, replies: bool, created_after: datetime, created_before: datetime, pinned: bool):
+    """Pull a user's posts (statuses)."""
+    api = ctx.obj
     if created_after and created_after.tzinfo is None:
-        created_after = created_after.replace(tzinfo=datetime.timezone.utc)
+        created_after = created_after.replace(tzinfo=timezone.utc)
+    if created_before and created_before.tzinfo is None:
+        created_before = created_before.replace(tzinfo=timezone.utc)
 
-    for page in api.pull_statuses(
-        username, created_after=created_after, replies=replies, pinned=pinned
-    ):
-        print(json.dumps(page))
-
-
-@cli.command()
-@click.argument("post")
-@click.option("--includeall", is_flag=True, help="return all comments on post.")
-@click.argument("top_num")
-def likes(post: str, includeall: bool, top_num: int):
-    """Pull the top_num most recent users who liked the post."""
-    for page in api.user_likes(post, includeall, top_num):
-        print(json.dumps(page))
-
+    for post in api.pull_statuses(username, replies=replies, created_after=created_after, created_before=created_before, pinned=pinned):
+        print(json.dumps(post))
 
 @cli.command()
-@click.argument("post")
+@click.argument("post_id")
+@click.option("--limit", default=40, help="Number of likers per page.")
+@click.pass_context
+def likes(ctx, post_id: str, limit: int):
+    """Pull the list of users who liked a post."""
+    api = ctx.obj
+    for liker in api.user_likes(post_id, limit=limit):
+        print(json.dumps(liker))
+
+@cli.command()
+@click.argument("post_id")
+@click.option("--limit", default=50, help="The maximum number of comments to fetch.")
 @click.option(
-    "--includeall", is_flag=True, help="return all comments on post. Overrides top_num."
+    "--sort-by",
+    help="Sort comments by engagement or time.",
+    type=click.Choice(["trending", "controversial", "newest", "oldest"]),
+    default="trending",
 )
-@click.option(
-    "--onlyfirst", is_flag=True, help="return only direct replies to specified post"
-)
-@click.argument("top_num")
-def comments(post: str, includeall: bool, onlyfirst: bool, top_num: int = 40):
-    """Pull the top_num comments on a post (defaults to all users, including replies)."""
-    for page in api.pull_comments(post, includeall, onlyfirst, top_num):
-        print(page)
+@click.pass_context
+def comments(ctx, post_id: str, limit: int, sort_by: str):
+    """Pull the top comments for a specific post ID."""
+    api = ctx.obj
+    for comment in api.pull_comments(post_id=post_id, top_num=limit, sort_by=sort_by):
+        print(json.dumps(comment))
