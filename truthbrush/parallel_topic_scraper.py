@@ -3,14 +3,12 @@ from truthbrush.api import Api
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- CONFIGURATION ---
+#CONFIGURATION
 TOPICS_FILE = "topics.txt"
 OUTPUT_FILE = "all_topics_parallel_data.jsonl"
 SEARCH_TYPE = "statuses"
-SEARCH_LIMIT_PER_TOPIC = 100 # Set a reasonable limit per topic
+SEARCH_LIMIT_PER_TOPIC = 100 
 MAX_WORKERS = 5 
-# --- Date filters have been completely removed ---
-# --- END CONFIGURATION ---
 
 def scrape_topic(api_session, topic):
     """
@@ -19,8 +17,6 @@ def scrape_topic(api_session, topic):
     """
     try:
         print(f"  -> Starting search for: {topic}")
-        # *** THIS IS THE FIX ***
-        # The created_after and created_before arguments have been removed.
         posts = list(api_session.search(
             query=topic,
             searchtype=SEARCH_TYPE,
@@ -33,9 +29,8 @@ def scrape_topic(api_session, topic):
         return []
 
 def main():
-    """
-    Logs in once, then uses a pool of threads to search multiple topics in parallel.
-    """
+    
+    # Logs in once, then uses a pool of threads to search multiple topics in parallel.
     logging.basicConfig(level=logging.WARNING)
     logger = logging.getLogger("truthbrush.api")
     logger.setLevel(logging.WARNING)
