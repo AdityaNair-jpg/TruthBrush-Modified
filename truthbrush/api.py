@@ -13,7 +13,6 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import random
 
-# This is the most reliable way to load the .env file
 load_dotenv(find_dotenv())
 
 logging.basicConfig(level=logging.INFO)
@@ -49,7 +48,6 @@ class Api:
     def _browser_login(self):
         logger.info("Launching browser for automated login...")
         options = uc.ChromeOptions()
-        # To run in the background, uncomment the next line
         # options.headless = True
         self.driver = uc.Chrome(options=options)
         try:

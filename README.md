@@ -1,7 +1,7 @@
 ## What each script does?
-parallel_user_scraper.py:  For multiple user scraping (enter the usernames into users.txt)
-parallel_topic_scraper.py:  For multiple user scraping (enter the Topics into topics.txt)
-Command for filtering by date: truthbrush search --searchtype statuses "[TOPIC]" --created-after YYYY-MM-DD --created-before YYYY-MM-DD
+*parallel_user_scraper.py:  For multiple user scraping (enter the usernames into users.txt)
+*parallel_topic_scraper.py:  For multiple user scraping (enter the Topics into topics.txt)
+*Command for filtering by date: truthbrush search --searchtype statuses "[TOPIC]" --created-after YYYY-MM-DD --created-before YYYY-MM-DD
 
 
 
