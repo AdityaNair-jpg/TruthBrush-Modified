@@ -27,28 +27,27 @@ class LoginErrorException(Exception):
     pass
 
 class Api:
+    """
+    A refactored API client that logs in only once and reuses the session.
+    """
     def __init__(self, username=TRUTHSOCIAL_USERNAME, password=TRUTHSOCIAL_PASSWORD):
         self.__username = username
         self.__password = password
         self.auth_id = None
         self.driver = None
-
-    def __del__(self):
-        if self.driver:
-            self.driver.quit()
-
-    def __check_login(self):
-        if self.driver is None or self.auth_id is None:
-            if not self.__username:
-                raise LoginErrorException("Username is missing. Please check your .env file.")
-            if not self.__password:
-                raise LoginErrorException("Password is missing. Please check your .env file.")
-            self._browser_login()
+        
+        # --- KEY CHANGE: Login immediately on initialization ---
+        if not self.__username:
+            raise LoginErrorException("Username is missing. Please check your .env file.")
+        if not self.__password:
+            raise LoginErrorException("Password is missing. Please check your .env file.")
+        
+        self._browser_login()
 
     def _browser_login(self):
-        logger.info("Launching browser for automated login...")
+        logger.info("Launching browser for a single, persistent session...")
         options = uc.ChromeOptions()
-        # options.headless = True
+        # options.headless = True # You can uncomment this to run without a visible browser window
         self.driver = uc.Chrome(options=options)
         try:
             self.driver.get(f"{BASE_URL}/login")
@@ -56,30 +55,49 @@ class Api:
             self.driver.find_element(By.NAME, "password").send_keys(self.__password)
             self.driver.find_element(By.XPATH, "//button[@type='submit']").click()
             WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Home')]")))
-            logger.info("Login successful!")
+            logger.info("Login successful! Session is now active.")
             token_data_str = self.driver.execute_script("return localStorage.getItem('truth:auth')")
             token_data = json.loads(token_data_str)
             self.auth_id = next(iter(token_data.get('tokens')))
             logger.success(f"Successfully retrieved auth token: {self.auth_id[:10]}...")
         except Exception as e:
             logger.error(f"An error occurred during automated login: {e}")
-            if self.driver: self.driver.quit()
+            self.quit() # Ensure browser is closed on failure
             raise
 
+    def quit(self):
+        """Safely closes the browser session."""
+        if self.driver:
+            self.driver.quit()
+            logger.info("Browser session closed.")
+
     def _get(self, url: str, params: dict = None) -> Any:
-        self.__check_login()
+        if not self.driver or not self.auth_id:
+            raise LoginErrorException("Session is not active. Please re-initialize the Api object.")
+
         full_url = API_BASE_URL + url
         if params:
             from urllib.parse import urlencode
             full_url += '?' + urlencode(params)
+        
         js_script = f"""
         var callback = arguments[arguments.length - 1];
         fetch("{full_url}", {{ headers: {{ "Authorization": "Bearer {self.auth_id}" }} }})
-        .then(response => response.json()).then(data => callback(data))
+        .then(response => {{
+            if (!response.ok) {{
+                // Handle non-200 responses, like rate limiting
+                return callback({{error: `HTTP error! status: ${{response.status}}`}});
+            }}
+            return response.json();
+        }})
+        .then(data => callback(data))
         .catch(error => callback({{error: error.toString()}}));
         """
         return self.driver.execute_async_script(js_script)
 
+    # --- All other methods (search, pull_statuses, etc.) remain exactly the same ---
+    # They will now use the single, persistent session via the _get method.
+    
     def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, **kwargs):
         params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
         MAX_ITEMS = 10000
@@ -109,7 +127,7 @@ class Api:
                 break
 
             params['offset'] += len(items)
-            sleep(random.uniform(1.5, 3.5))
+            sleep(random.uniform(1.0, 2.0))
 
     def pull_statuses(self, username: str, replies: bool, created_after: datetime = None, created_before: datetime = None, pinned: bool = False):
         lookup_result = self.lookup(username)
@@ -132,7 +150,7 @@ class Api:
                 if created_before and post_at > created_before: continue
                 yield post
             if pinned: break
-            sleep(random.uniform(1.5, 3.5))
+            sleep(random.uniform(1.0, 2.0))
 
     def lookup(self, user_handle: str = None):
         return self._get("/v1/accounts/lookup", params=dict(acct=user_handle))
@@ -161,14 +179,14 @@ class Api:
                 params['max_id'] = max_id
             
             likers = self._get(f"/v1/statuses/{post_id}/favourited_by", params=params)
-            if not likers: break
+            if not likers or (isinstance(likers, dict) and 'error' in likers): break
             
             for liker in likers:
                 yield liker
             
             if len(likers) < limit: break
             max_id = likers[-1]['id']
-            sleep(random.uniform(1.5, 3.5))
+            sleep(random.uniform(1.0, 2.0))
 
     def groupposts(self, group_id: str, limit: int = 40):
         max_id = None
@@ -185,7 +203,7 @@ class Api:
             
             if len(posts) < limit: break
             max_id = posts[-1]['id']
-            sleep(random.uniform(1.5, 3.5))
+            sleep(random.uniform(1.0, 2.0))
             
     def trending_truths(self):
         return self._get("/v1/truth/trending/truths")

@@ -10,6 +10,8 @@ def cli(ctx):
     TruthBrush-Modified: A re-engineered API client for Truth Social.
     Requires a .env file in the run directory.
     """
+    # This is the corrected initialization. It creates the Api object
+    # after the environment is ready and passes it to other commands.
     ctx.obj = Api()
 
 @cli.command()
@@ -17,7 +19,7 @@ def cli(ctx):
 @click.option("--limit", default=20, help="Limit the number of items returned", type=int)
 @click.pass_context
 def groupposts(ctx, group_id: str, limit: int):
-    #Pull posts from a group's timeline
+    """Pull posts from a group's timeline."""
     api = ctx.obj
     for post in api.groupposts(group_id, limit=limit):
         print(json.dumps(post))
@@ -25,7 +27,7 @@ def groupposts(ctx, group_id: str, limit: int):
 @cli.command()
 @click.pass_context
 def trends(ctx):
-    #Pull trendy Truths
+    """Pull trendy Truths."""
     api = ctx.obj
     trending_posts = api.trending_truths()
     if trending_posts:
@@ -35,28 +37,28 @@ def trends(ctx):
 @cli.command()
 @click.pass_context
 def tags(ctx):
-    #Pull trendy tags
+    """Pull trendy tags."""
     api = ctx.obj
     print(json.dumps(api.tags()))
 
 @cli.command()
 @click.pass_context
 def grouptags(ctx):
-    #Pull group tags#
+    """Pull group tags."""
     api = ctx.obj
     print(json.dumps(api.group_tags()))
 
 @cli.command()
 @click.pass_context
 def grouptrends(ctx):
-    #Pull group trends
+    """Pull group trends."""
     api = ctx.obj
     print(json.dumps(api.trending_groups()))
 
 @cli.command()
 @click.pass_context
 def groupsuggestions(ctx):
-    #Pull group suggestions
+    """Pull group suggestions."""
     api = ctx.obj
     print(json.dumps(api.suggested_groups()))
 
@@ -64,7 +66,7 @@ def groupsuggestions(ctx):
 @click.argument("handle")
 @click.pass_context
 def user(ctx, handle: str):
-    #Pull a user's metadata
+    """Pull a user's metadata."""
     api = ctx.obj
     print(json.dumps(api.lookup(handle)))
 
@@ -90,7 +92,7 @@ def search(ctx, query: str, searchtype: str, limit: int, created_after: datetime
 @cli.command()
 @click.pass_context
 def suggestions(ctx):
-    #Pull the list of suggested users
+    """Pull the list of suggested users."""
     api = ctx.obj
     suggested_users = api.suggestions()
     if suggested_users:
@@ -100,7 +102,7 @@ def suggestions(ctx):
 @cli.command()
 @click.pass_context
 def ads(ctx):
-    #Pull ads
+    """Pull ads."""
     api = ctx.obj
     print(json.dumps(api.ads()))
 
