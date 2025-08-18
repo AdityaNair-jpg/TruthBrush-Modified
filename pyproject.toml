@@ -16,6 +16,7 @@ loguru = "^0.7.0"
 python-dotenv = "^1.0.1"
 python-dateutil = "2.9.0"
 curl_cffi = "^0.7.0"
+undetected-chromedriver = "^3.5.5"
 
 [tool.poetry.dev-dependencies]
 black = "^24.3.0"

@@ -100,7 +100,7 @@ class Api:
     
     def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, **kwargs):
         params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
-        MAX_ITEMS = 10000
+        MAX_ITEMS = 1000
         total_fetched = 0
         while total_fetched < MAX_ITEMS:
             page = self._get("/v2/search", params)
@@ -162,8 +162,16 @@ class Api:
         params = {"limit": top_num, "sort_by": sort_by}
         comments_data = self._get(f"/v1/statuses/{post_id}/context", params)
         if comments_data and "descendants" in comments_data:
-            for comment in comments_data["descendants"]:
-                yield comment
+            # Check if there are any descendants before yielding
+            if comments_data["descendants"]:
+                for comment in comments_data["descendants"]:
+                    yield comment
+            else:
+                logger.info("Post has no comments.")
+        else:
+            # Log the unexpected API response for debugging
+            logger.warning(f"Could not find comments ('descendants') in the API response for post {post_id}.")
+            logger.debug(f"API response: {comments_data}")
     
     def suggestions(self):
         return self._get("/v2/suggestions")
