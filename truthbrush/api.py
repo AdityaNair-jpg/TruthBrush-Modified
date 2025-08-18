@@ -36,7 +36,7 @@ class Api:
         self.auth_id = None
         self.driver = None
         
-        # --- KEY CHANGE: Login immediately on initialization ---
+        
         if not self.__username:
             raise LoginErrorException("Username is missing. Please check your .env file.")
         if not self.__password:
@@ -95,8 +95,7 @@ class Api:
         """
         return self.driver.execute_async_script(js_script)
 
-    # --- All other methods (search, pull_statuses, etc.) remain exactly the same ---
-    # They will now use the single, persistent session via the _get method.
+    
     
     def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, **kwargs):
         params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
@@ -162,14 +161,14 @@ class Api:
         params = {"limit": top_num, "sort_by": sort_by}
         comments_data = self._get(f"/v1/statuses/{post_id}/context", params)
         if comments_data and "descendants" in comments_data:
-            # Check if there are any descendants before yielding
+            # Checking if there are any descendants before yielding
             if comments_data["descendants"]:
                 for comment in comments_data["descendants"]:
                     yield comment
             else:
                 logger.info("Post has no comments.")
         else:
-            # Log the unexpected API response for debugging
+            # Logging the unexpected API response for debugging
             logger.warning(f"Could not find comments ('descendants') in the API response for post {post_id}.")
             logger.debug(f"API response: {comments_data}")
     

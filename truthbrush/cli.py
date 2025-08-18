@@ -6,12 +6,6 @@ from .api import Api
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 @click.pass_context
 def cli(ctx):
-    """
-    TruthBrush-Modified: A re-engineered API client for Truth Social.
-    Requires a .env file in the run directory.
-    """
-    # This is the corrected initialization. It creates the Api object
-    # after the environment is ready and passes it to other commands.
     ctx.obj = Api()
 
 @cli.command()

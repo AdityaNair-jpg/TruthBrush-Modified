@@ -3,19 +3,19 @@ import os
 import time
 from truthbrush.api import Api, LoginErrorException
 
-# --- Configuration ---
+#Configure the topics to proceed
 TOPIC = "Russia"
 TARGET_POST_COUNT = 10000
 MAX_POSTS_TO_CHECK_PER_USER = 500 
 OUTPUT_FILE = f"{TOPIC}_snowball_posts.jsonl"
 
-# --- State Files ---
+# State Files
 STATE_DIR = "scraper_state"
 USERS_TO_SCRAPE_FILE = os.path.join(STATE_DIR, f"{TOPIC}_users_to_scrape.json")
 SCRAPED_USERS_FILE = os.path.join(STATE_DIR, f"{TOPIC}_scraped_users.json")
 COLLECTED_POST_IDS_FILE = os.path.join(STATE_DIR, f"{TOPIC}_collected_post_ids.json")
 
-# --- Helper Functions (unchanged) ---
+
 def initialize_state():
     if not os.path.exists(STATE_DIR): os.makedirs(STATE_DIR)
     print(f"✅ State will be managed in the '{STATE_DIR}' directory.")
@@ -37,7 +37,6 @@ def run_robust_snowball_scraper():
     
     tb_api = None
     try:
-        # --- KEY CHANGE: Initialize API client ONCE at the start ---
         print("\n[Phase 1: Establishing a persistent browser session...]")
         tb_api = Api()
 
@@ -102,12 +101,11 @@ def run_robust_snowball_scraper():
                 save_state(scraped_users, SCRAPED_USERS_FILE)
                 save_state(collected_post_ids, COLLECTED_POST_IDS_FILE)
             
-            time.sleep(0.5) # A short delay between users is still polite
+            time.sleep(0.5) 
 
     except (LoginErrorException, Exception) as e:
         print(f"\n❌ A critical error occurred: {e}")
     finally:
-        # --- KEY CHANGE: Ensure the browser is always closed at the end ---
         print("\n--- Scraper session finished. ---")
         if tb_api:
             tb_api.quit()
