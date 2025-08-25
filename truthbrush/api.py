@@ -46,25 +46,63 @@ class Api:
 
     def _browser_login(self):
         logger.info("Launching browser for a single, persistent session...")
-        options = uc.ChromeOptions()
-        # options.headless = True # You can uncomment this to run without a visible browser window
-        self.driver = uc.Chrome(options=options)
-        try:
-            self.driver.get(f"{BASE_URL}/login")
-            WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sign In']"))).click()
-            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.NAME, "username"))).send_keys(self.__username)
-            self.driver.find_element(By.NAME, "password").send_keys(self.__password)
-            self.driver.find_element(By.XPATH, "//button[@type='submit']").click()
-            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Home')]")))
-            logger.info("Login successful! Session is now active.")
-            token_data_str = self.driver.execute_script("return localStorage.getItem('truth:auth')")
-            token_data = json.loads(token_data_str)
-            self.auth_id = next(iter(token_data.get('tokens')))
-            logger.success(f"Successfully retrieved auth token: {self.auth_id[:10]}...")
-        except Exception as e:
-            logger.error(f"An error occurred during automated login: {e}")
-            self.quit() # Ensure browser is closed on failure
-            raise
+
+        with open('proxies.txt', 'r') as f:
+            proxies = [line.strip() for line in f if line.strip()]
+
+        if not proxies:
+            raise ValueError("proxies.txt is empty. Please add at least one proxy.")
+
+        # Counter for unique filenames
+        attempt_counter = 0
+
+        for proxy in proxies:
+            attempt_counter += 1
+            logger.info(f"Attempt #{attempt_counter}: Connecting with proxy: {proxy}")
+            try:
+                options = uc.ChromeOptions()
+                options.add_argument('--headless')
+                options.add_argument('--no-sandbox')
+                options.add_argument(f'--proxy-server={proxy}')
+
+                self.driver = uc.Chrome(
+                    browser_executable_path="/usr/bin/chromium-browser",
+                    version_main=138,
+                    options=options
+                )
+
+                self.driver.get(f"{BASE_URL}/login")
+                WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Sign In']")))
+
+                logger.success(f"Successfully connected with proxy: {proxy}")
+
+                # If connection is successful, proceed with login
+                self.driver.find_element(By.NAME, "username").send_keys(self.__username)
+                self.driver.find_element(By.NAME, "password").send_keys(self.__password)
+                self.driver.find_element(By.XPATH, "//button[@type='submit']").click()
+                WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Home')]")))
+                logger.info("Login successful! Session is now active.")
+                token_data_str = self.driver.execute_script("return localStorage.getItem('truth:auth')")
+                token_data = json.loads(token_data_str)
+                self.auth_id = next(iter(token_data.get('tokens')))
+                logger.success(f"Successfully retrieved auth token: {self.auth_id[:10]}...")
+                return # Exit the loop and method on success
+
+            except Exception as e:
+                # Save debug files for this specific attempt
+                screenshot_filename = f'debug_screenshot_attempt_{attempt_counter}.png'
+                html_filename = f'debug_page_source_attempt_{attempt_counter}.html'
+                self.driver.save_screenshot(screenshot_filename)
+                with open(html_filename, 'w', encoding='utf-8') as f:
+                    f.write(self.driver.page_source)
+                
+                logger.warning(f"Failed to connect with proxy {proxy}. Saved {screenshot_filename}. Error: {type(e).__name__}. Trying next proxy.")
+                if self.driver:
+                    self.driver.quit()
+
+        # This part will only be reached if all proxies in the list fail
+        logger.error("All proxies from the list failed.")
+        raise ConnectionError("Could not connect to the website with any of the provided proxies.")
 
     def quit(self):
         """Safely closes the browser session."""
