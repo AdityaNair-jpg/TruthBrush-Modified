@@ -18,7 +18,7 @@ COLLECTED_POST_IDS_FILE = os.path.join(STATE_DIR, f"{TOPIC}_collected_post_ids.j
 
 def initialize_state():
     if not os.path.exists(STATE_DIR): os.makedirs(STATE_DIR)
-    print(f"✅ State will be managed in the '{STATE_DIR}' directory.")
+    print(f"State will be managed in the '{STATE_DIR}' directory.")
 def save_state(data, filepath):
     with open(filepath, 'w') as f: json.dump(list(data), f)
 def load_state_set(filepath):
@@ -49,13 +49,13 @@ def run_robust_snowball_scraper():
                         username = post['account']['acct']
                         if username not in scraped_users and username not in users_to_scrape:
                             users_to_scrape.append(username)
-                print(f"🌱 Discovered {len(users_to_scrape)} initial seed users.")
+                print(f"Discovered {len(users_to_scrape)} initial seed users.")
                 save_state(users_to_scrape, USERS_TO_SCRAPE_FILE)
             except Exception as e:
-                print(f"⚠️ Warning: Could not fetch seed users. Error: {e}")
+                print(f"Warning: Could not fetch seed users. Error: {e}")
 
         if not users_to_scrape:
-            print("❌ No users to scrape. The initial seed search may have failed. Exiting.")
+            print("No users to scrape. The initial seed search may have failed. Exiting.")
             return
 
         print("\n[Phase 3: Starting the main scraping and discovery loop]")
@@ -92,11 +92,11 @@ def run_robust_snowball_scraper():
                         except Exception: pass
             
             except Exception as e:
-                print(f"⚠️ Warning: An error occurred while scraping @{current_user}. Skipping. Error: {e}")
+                print(f"Warning: An error occurred while scraping @{current_user}. Skipping. Error: {e}")
 
             scraped_users.add(current_user)
             if len(scraped_users) % 5 == 0:
-                print("💾 Saving progress...")
+                print("Saving progress...")
                 save_state(users_to_scrape, USERS_TO_SCRAPE_FILE)
                 save_state(scraped_users, SCRAPED_USERS_FILE)
                 save_state(collected_post_ids, COLLECTED_POST_IDS_FILE)
@@ -104,17 +104,17 @@ def run_robust_snowball_scraper():
             time.sleep(0.5) 
 
     except (LoginErrorException, Exception) as e:
-        print(f"\n❌ A critical error occurred: {e}")
+        print(f"\A critical error occurred: {e}")
     finally:
         print("\n--- Scraper session finished. ---")
         if tb_api:
             tb_api.quit()
         
-        print("💾 Performing final state save...")
+        print("Performing final state save...")
         save_state(users_to_scrape, USERS_TO_SCRAPE_FILE)
         save_state(scraped_users, SCRAPED_USERS_FILE)
         save_state(collected_post_ids, COLLECTED_POST_IDS_FILE)
-        print("✨ Done.")
+        print("Done.")
 
 if __name__ == "__main__":
     run_robust_snowball_scraper()

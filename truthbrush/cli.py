@@ -6,6 +6,12 @@ from .api import Api
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 @click.pass_context
 def cli(ctx):
+    """
+    TruthBrush-Modified: A re-engineered API client for Truth Social.
+    Requires a .env file in the run directory.
+    """
+    # This is the corrected initialization. It creates the Api object
+    # after the environment is ready and passes it to other commands.
     ctx.obj = Api()
 
 @cli.command()
@@ -129,17 +135,17 @@ def likes(ctx, post_id: str, limit: int):
         print(json.dumps(liker))
 
 @cli.command()
-@click.argument("post_id")
-@click.option("--limit", default=50, help="The maximum number of comments to fetch.")
+@click.argument("post")
 @click.option(
-    "--sort-by",
-    help="Sort comments by engagement or time.",
-    type=click.Choice(["trending", "controversial", "newest", "oldest"]),
-    default="trending",
+    "--includeall", is_flag=True, help="return all comments on post. Overrides top_num."
 )
+@click.option(
+    "--onlyfirst", is_flag=True, help="return only direct replies to specified post"
+)
+@click.argument("top_num", default=40)
 @click.pass_context
-def comments(ctx, post_id: str, limit: int, sort_by: str):
-    """Pull the top comments for a specific post ID."""
+def comments(ctx, post, includeall, onlyfirst, top_num):
+    """Pull the list of oldest comments on a post"""
     api = ctx.obj
-    for comment in api.pull_comments(post_id=post_id, top_num=limit, sort_by=sort_by):
-        print(json.dumps(comment))
+    for page in api.pull_comments(post, includeall, onlyfirst, top_num):
+        print(json.dumps(page))

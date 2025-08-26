@@ -36,7 +36,6 @@ class Api:
         self.auth_id = None
         self.driver = None
         
-        # --- KEY CHANGE: Login immediately on initialization ---
         if not self.__username:
             raise LoginErrorException("Username is missing. Please check your .env file.")
         if not self.__password:
@@ -47,7 +46,7 @@ class Api:
     def _browser_login(self):
         logger.info("Launching browser for a single, persistent session...")
         options = uc.ChromeOptions()
-        # options.headless = True # You can uncomment this to run without a visible browser window
+        # options.headless = True 
         self.driver = uc.Chrome(options=options)
         try:
             self.driver.get(f"{BASE_URL}/login")
@@ -63,7 +62,7 @@ class Api:
             logger.success(f"Successfully retrieved auth token: {self.auth_id[:10]}...")
         except Exception as e:
             logger.error(f"An error occurred during automated login: {e}")
-            self.quit() # Ensure browser is closed on failure
+            self.quit()
             raise
 
     def quit(self):
@@ -86,7 +85,6 @@ class Api:
         fetch("{full_url}", {{ headers: {{ "Authorization": "Bearer {self.auth_id}" }} }})
         .then(response => {{
             if (!response.ok) {{
-                // Handle non-200 responses, like rate limiting
                 return callback({{error: `HTTP error! status: ${{response.status}}`}});
             }}
             return response.json();
@@ -96,9 +94,6 @@ class Api:
         """
         return self.driver.execute_async_script(js_script)
 
-    # --- All other methods (search, pull_statuses, etc.) remain exactly the same ---
-    # They will now use the single, persistent session via the _get method.
-    
     def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, **kwargs):
         params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
         MAX_ITEMS = 1000
@@ -112,7 +107,7 @@ class Api:
             items = sorted(page[searchtype], key=lambda p: p.get("created_at", ""), reverse=True)
             
             for item in items:
-                if 'created_at' in item: # Only filter items that have a date, like statuses
+                if 'created_at' in item: 
                     post_at = date_parse.parse(item["created_at"]).replace(tzinfo=timezone.utc)
                     if created_after and post_at < created_after:
                         total_fetched = MAX_ITEMS
@@ -159,21 +154,53 @@ class Api:
     def trending(self):
         return self._get("/v1/trends")
         
-    def pull_comments(self, post_id: str, top_num: int = 50, sort_by: str = "trending"):
-        params = {"limit": top_num, "sort_by": sort_by}
-        comments_data = self._get(f"/v1/statuses/{post_id}/context", params)
-        if comments_data and "descendants" in comments_data:
-            # Check if there are any descendants before yielding
-            if comments_data["descendants"]:
-                for comment in comments_data["descendants"]:
-                    yield comment
-            else:
-                logger.info("Post has no comments.")
-        else:
-            # Log the unexpected API response for debugging
-            logger.warning(f"Could not find comments ('descendants') in the API response for post {post_id}.")
-            logger.debug(f"API response: {comments_data}")
-    
+    def pull_comments(
+        self,
+        post: str,
+        includeall: bool = False,
+        onlyfirst: bool = False,
+        top_num: int = 40,
+    ):
+        """Pull comments for a given post."""
+        
+        max_id = None
+        params = {}
+        total_fetched = 0
+        
+        while True:
+            if max_id:
+                params['max_id'] = max_id
+
+            comments = self._get(f"/v1/statuses/{post}/context/descendants", params=params)
+
+            if not comments or (isinstance(comments, dict) and 'error' in comments):
+                if total_fetched == 0: # Only show warning if no comments were ever found
+                    logger.warning(f"Could not find comments for post {post}, or the post has no comments.")
+                break
+
+            if not isinstance(comments, list):
+                logger.error(f"Unexpected API response for comments: {comments}")
+                break
+                
+            # Filter for only direct replies if the flag is set
+            if onlyfirst:
+                comments = [comment for comment in comments if comment.get("in_reply_to_id") == post]
+
+            if not comments:
+                break
+
+            for comment in comments:
+                yield comment
+                total_fetched += 1
+                if not includeall and total_fetched >= top_num:
+                    return
+            
+            max_id = comments[-1].get("id")
+            if not max_id:
+                break
+
+            sleep(random.uniform(1.0, 2.0))
+
     def suggestions(self):
         return self._get("/v2/suggestions")
 
