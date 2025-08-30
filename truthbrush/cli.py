@@ -10,8 +10,6 @@ def cli(ctx):
     TruthBrush-Modified: A re-engineered API client for Truth Social.
     Requires a .env file in the run directory.
     """
-    # This is the corrected initialization. It creates the Api object
-    # after the environment is ready and passes it to other commands.
     ctx.obj = Api()
 
 @cli.command()
@@ -77,8 +75,10 @@ def user(ctx, handle: str):
 @click.option("--created-after", type=click.DateTime(), help="Filter posts on or after this date (YYYY-MM-DD).")
 @click.option("--created-before", type=click.DateTime(), help="Filter posts on or before this date (YYYY-MM-DD).")
 @click.option("--resolve", type=bool, default=False, help="Resolve URLs in search.")
+@click.option("--include-comments", is_flag=True, help="Include comments in the output for status searches.")
+@click.option("--comment-limit", default=50, help="Maximum number of comments to fetch per post.")
 @click.pass_context
-def search(ctx, query: str, searchtype: str, limit: int, created_after: datetime, created_before: datetime, resolve: bool):
+def search(ctx, query: str, searchtype: str, limit: int, created_after: datetime, created_before: datetime, resolve: bool, include_comments: bool, comment_limit: int):
     """Search for posts, accounts, or hashtags by a keyword."""
     api = ctx.obj
     if created_after and created_after.tzinfo is None:
@@ -86,7 +86,7 @@ def search(ctx, query: str, searchtype: str, limit: int, created_after: datetime
     if created_before and created_before.tzinfo is None:
         created_before = created_before.replace(tzinfo=timezone.utc)
 
-    for item in api.search(searchtype=searchtype, query=query, limit=limit, created_after=created_after, created_before=created_before, resolve=resolve):
+    for item in api.search(searchtype=searchtype, query=query, limit=limit, created_after=created_after, created_before=created_before, resolve=resolve, include_comments=include_comments, comment_limit=comment_limit):
         print(json.dumps(item))
 
 @cli.command()
@@ -142,10 +142,16 @@ def likes(ctx, post_id: str, limit: int):
 @click.option(
     "--onlyfirst", is_flag=True, help="return only direct replies to specified post"
 )
+@click.option(
+    "--sort",
+    type=click.Choice(["oldest", "newest", "trending", "controversial"]),
+    default="oldest",
+    help="Sort comments by a specific order.",
+)
 @click.argument("top_num", default=40)
 @click.pass_context
-def comments(ctx, post, includeall, onlyfirst, top_num):
-    """Pull the list of oldest comments on a post"""
+def comments(ctx, post, includeall, onlyfirst, top_num, sort):
+    """Pull the list of comments on a post"""
     api = ctx.obj
-    for page in api.pull_comments(post, includeall, onlyfirst, top_num):
+    for page in api.pull_comments(post, includeall, onlyfirst, top_num, sort):
         print(json.dumps(page))

@@ -94,14 +94,27 @@ class Api:
         """
         return self.driver.execute_async_script(js_script)
 
-    def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, **kwargs):
+    def search(self, searchtype: str, query: str, limit: int, created_after: datetime = None, created_before: datetime = None, resolve: bool = False, include_comments: bool = False, comment_limit: int = 50, **kwargs):
         params = dict(q=query, limit=limit, type=searchtype, offset=0, resolve=resolve)
         MAX_ITEMS = 1000
         total_fetched = 0
+        
+        logger.info(f"Starting search for '{query}' with type '{searchtype}'...")
+
         while total_fetched < MAX_ITEMS:
             page = self._get("/v2/search", params)
-            if not page or not isinstance(page.get(searchtype), list) or not page.get(searchtype):
-                logger.info("Search finished or no more results found.")
+            
+            logger.debug(f"API response for search page: {page}")
+
+            if not page or (isinstance(page, dict) and 'error' in page):
+                logger.error(f"Received an error or empty page from API: {page}")
+                break
+            
+            if not isinstance(page.get(searchtype), list) or not page.get(searchtype):
+                if total_fetched == 0:
+                    logger.warning(f"Search for '{query}' returned no results.")
+                else:
+                    logger.info("Search finished as no more results were found.")
                 break
             
             items = sorted(page[searchtype], key=lambda p: p.get("created_at", ""), reverse=True)
@@ -114,6 +127,14 @@ class Api:
                         break
                     if created_before and post_at > created_before:
                         continue
+                
+                if searchtype == 'statuses' and include_comments:
+                    post_id = item.get("id")
+                    if post_id:
+                        logger.info(f"Fetching up to {comment_limit} comments for post ID: {post_id}")
+                        comments = list(self.pull_comments(post_id, includeall=False, top_num=comment_limit))
+                        item['comments'] = comments
+
                 yield item
                 total_fetched += 1
                 if total_fetched >= MAX_ITEMS: break
@@ -160,11 +181,12 @@ class Api:
         includeall: bool = False,
         onlyfirst: bool = False,
         top_num: int = 40,
+        sort: str = "oldest",
     ):
         """Pull comments for a given post."""
         
         max_id = None
-        params = {}
+        params = {"sort": sort}
         total_fetched = 0
         
         while True:
@@ -174,7 +196,7 @@ class Api:
             comments = self._get(f"/v1/statuses/{post}/context/descendants", params=params)
 
             if not comments or (isinstance(comments, dict) and 'error' in comments):
-                if total_fetched == 0: # Only show warning if no comments were ever found
+                if total_fetched == 0:
                     logger.warning(f"Could not find comments for post {post}, or the post has no comments.")
                 break
 
@@ -182,7 +204,6 @@ class Api:
                 logger.error(f"Unexpected API response for comments: {comments}")
                 break
                 
-            # Filter for only direct replies if the flag is set
             if onlyfirst:
                 comments = [comment for comment in comments if comment.get("in_reply_to_id") == post]
 
@@ -195,12 +216,15 @@ class Api:
                 if not includeall and total_fetched >= top_num:
                     return
             
+            if not includeall and total_fetched >= top_num:
+                return
+
             max_id = comments[-1].get("id")
             if not max_id:
                 break
 
             sleep(random.uniform(1.0, 2.0))
-
+    
     def suggestions(self):
         return self._get("/v2/suggestions")
 
